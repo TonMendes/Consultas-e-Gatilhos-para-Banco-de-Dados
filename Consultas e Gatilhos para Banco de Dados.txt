@@ -1,0 +1,127 @@
+Parte 1 – Personalizando Acessos com Views
+Neste documento, serão criadas views e definidas permissões de acesso de acordo com os diferentes tipos de usuários.
+
+1. Número de Empregados por Departamento e Localidade
+Consulta para criação da view:
+
+sql
+Copiar código
+CREATE VIEW view_empregados_departamento_localidade AS
+SELECT department, city, COUNT(*) AS num_employees
+FROM employees
+JOIN departments ON employees.department_id = departments.department_id
+GROUP BY department, city;
+2. Lista de Departamentos e Seus Gerentes
+Consulta para criação da view:
+
+sql
+Copiar código
+CREATE VIEW view_departamentos_gerentes AS
+SELECT d.department_id, d.department_name, e.employee_name AS manager_name
+FROM departments d
+JOIN employees e ON d.manager_id = e.employee_id;
+3. Projetos com Maior Número de Empregados (Ordenação Descendente)
+Consulta para criação da view:
+
+sql
+Copiar código
+CREATE VIEW view_projetos_maior_num_empregados AS
+SELECT project_name, COUNT(e.employee_id) AS num_employees
+FROM projects p
+JOIN project_assignments pa ON p.project_id = pa.project_id
+JOIN employees e ON pa.employee_id = e.employee_id
+GROUP BY project_name
+ORDER BY num_employees DESC;
+4. Lista de Projetos, Departamentos e Gerentes
+Consulta para criação da view:
+
+sql
+Copiar código
+CREATE VIEW view_projetos_departamentos_gerentes AS
+SELECT p.project_name, d.department_name, e.employee_name AS manager_name
+FROM projects p
+JOIN departments d ON p.department_id = d.department_id
+JOIN employees e ON d.manager_id = e.employee_id;
+5. Quais Empregados Possuem Dependentes e se São Gerentes
+Consulta para criação da view:
+
+sql
+Copiar código
+CREATE VIEW view_empregados_dependentes_gerentes AS
+SELECT e.employee_name, 
+       CASE 
+           WHEN ed.dependent_id IS NOT NULL THEN 'Sim'
+           ELSE 'Não'
+       END AS tem_dependentes,
+       CASE 
+           WHEN e.manager_id IS NOT NULL THEN 'Sim'
+           ELSE 'Não'
+       END AS is_manager
+FROM employees e
+LEFT JOIN dependents ed ON e.employee_id = ed.employee_id;
+Permissões de Acesso às Views
+Criando Usuário Gerente e Definindo Permissões:
+sql
+Copiar código
+-- Criar o usuário gerente
+CREATE USER 'gerente'@'localhost' IDENTIFIED BY 'senha123';
+
+-- Conceder permissões de acesso às views para o gerente
+GRANT SELECT ON view_empregados_departamento_localidade TO 'gerente'@'localhost';
+GRANT SELECT ON view_departamentos_gerentes TO 'gerente'@'localhost';
+GRANT SELECT ON view_projetos_maior_num_empregados TO 'gerente'@'localhost';
+GRANT SELECT ON view_projetos_departamentos_gerentes TO 'gerente'@'localhost';
+GRANT SELECT ON view_empregados_dependentes_gerentes TO 'gerente'@'localhost';
+Criando Usuário Employee e Definindo Permissões:
+sql
+Copiar código
+-- Criar o usuário empregado
+CREATE USER 'empregado'@'localhost' IDENTIFIED BY 'senha456';
+
+-- Conceder permissões de acesso apenas para as suas próprias informações
+GRANT SELECT ON view_empregados_dependentes_gerentes TO 'empregado'@'localhost';
+Parte 2 – Criando Gatilhos para Cenário de E-commerce
+Trigger: Before Delete (Remoção de Usuário)
+Consulta para criação da trigger de remoção:
+
+sql
+Copiar código
+DELIMITER $$
+
+CREATE TRIGGER before_delete_user
+BEFORE DELETE ON users
+FOR EACH ROW
+BEGIN
+    -- Exemplo de ação que pode ser feita antes de deletar o usuário
+    INSERT INTO user_deletion_log (user_id, deletion_time)
+    VALUES (OLD.user_id, NOW());
+END $$
+
+DELIMITER ;
+Trigger: Before Update (Atualização de Salário de Colaborador)
+Consulta para criação da trigger de atualização:
+
+sql
+Copiar código
+DELIMITER $$
+
+CREATE TRIGGER before_update_salary
+BEFORE UPDATE ON employees
+FOR EACH ROW
+BEGIN
+    -- Se o salário está sendo aumentado, faz algum tipo de ação adicional
+    IF NEW.salary > OLD.salary THEN
+        INSERT INTO salary_changes_log (employee_id, old_salary, new_salary, change_date)
+        VALUES (OLD.employee_id, OLD.salary, NEW.salary, NOW());
+    END IF;
+END $$
+
+DELIMITER ;
+
+
+Resumo
+
+Parte 1: Foi realizada a criação de views para facilitar a visualização dos dados e permitir consultas personalizadas de maneira eficiente. Também foram configuradas permissões de acesso para diferentes tipos de usuários, sendo um gerente com permissões mais amplas e um empregado com acesso restrito às suas próprias informações.
+
+Parte 2: Foram criadas triggers que ajudam a automatizar algumas ações no banco de dados. A trigger de remoção registra a remoção de usuários, enquanto a trigger de atualização registra mudanças nos salários dos colaboradores, garantindo que essas operações sejam acompanhadas de logs para fins de auditoria.
+
